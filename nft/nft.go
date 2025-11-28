@@ -219,7 +219,7 @@ func parseRule(rule *nftables.Rule) *types.Rule {
 			if e.Len == 2 && (e.Base == expr.PayloadBaseTransportHeader && e.Offset == 0) {
 				regs[e.DestRegister] = dataSrcPort
 			} else if e.Len == 2 && (e.Base == expr.PayloadBaseTransportHeader && e.Offset == 2) {
-				regs[e.DestRegister] = dataSrcPort
+				regs[e.DestRegister] = dataDstPort
 			} else if (e.Len == 4 || e.Len == 16) && (e.Base == expr.PayloadBaseNetworkHeader && (e.Offset == 12 || e.Offset == 8)) {
 				regs[e.DestRegister] = dataSrcAddr
 			} else if (e.Len == 4 || e.Len == 16) && (e.Base == expr.PayloadBaseNetworkHeader && (e.Offset == 16 || e.Offset == 24)) {
