@@ -1,0 +1,4 @@
+# Command line options for the flowmon.service
+# Also see /etc/flowmon/config.yaml
+
+ARGS="-config /etc/flowmon/config.yaml"
