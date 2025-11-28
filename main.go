@@ -89,7 +89,7 @@ func NewFlowmon(ctx context.Context, cfg *types.Config) (*Flowmon, error) {
 	)
 	otel.SetMeterProvider(meterProvider)
 
-	meter := meterProvider.Meter("network.flows")
+	meter := meterProvider.Meter("flowmon")
 
 	packetsGauge, err := meter.Int64ObservableGauge(
 		"flow.packets",
