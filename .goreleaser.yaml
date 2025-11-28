@@ -1,0 +1,45 @@
+version: 2
+
+before:
+  hooks:
+    - go mod download
+builds:
+- env:
+  - CGO_ENABLED=0
+  goos:
+    - linux
+  goarch:
+    - amd64
+    - arm64
+
+nfpms:
+  - id: default
+    maintainer: Nikolaos Gkarlis
+    homepage: https://github.com/nickgarlis/flowmon
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    contents:
+      - src: config.yaml.dist
+        dst: /etc/flowmon/config.yaml
+        type: config
+      - src: ./systemd/flowmon.service
+        dst: /etc/systemd/system/flowmon.service
+        type: config
+      - src: ./systemd/flowmon
+        dst: /etc/default/flowmon
+        type: config
+
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  version_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
+    - '^ci:'
