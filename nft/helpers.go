@@ -11,7 +11,7 @@ import (
 func getOrCreateTable(conn *nftables.Conn, tableName string, family nftables.TableFamily) (*nftables.Table, error) {
 	table, err := conn.ListTableOfFamily(tableName, family)
 	if err != nil && !errors.Is(err, unix.ENOENT) {
-		return nil, fmt.Errorf("failed to get table %s: %v", tableName, err)
+		return nil, fmt.Errorf("get table %s: %v", tableName, err)
 	}
 
 	if table == nil || errors.Is(err, unix.ENOENT) {
@@ -27,7 +27,7 @@ func getOrCreateTable(conn *nftables.Conn, tableName string, family nftables.Tab
 func getOrCreateChain(conn *nftables.Conn, table *nftables.Table, chain *nftables.Chain) (*nftables.Chain, error) {
 	got, err := conn.ListChain(table, chain.Name)
 	if err != nil && !errors.Is(err, unix.ENOENT) {
-		return nil, fmt.Errorf("failed to get chain %s: %v", chain.Name, err)
+		return nil, fmt.Errorf("get chain %s: %v", chain.Name, err)
 	}
 
 	// If the chain exists, replace it

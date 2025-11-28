@@ -10,7 +10,7 @@ import (
 
 func TestIPv4(t *testing.T) {
 	nft, err := New(&Config{
-		TableFamily:   uint8(types.TableFamilyIPv4),
+		TableFamily:   types.TableFamilyIPv4,
 		TableName:     "test_table",
 		InputChain:    "input",
 		OutputChain:   "output",
@@ -71,7 +71,7 @@ func TestIPv4(t *testing.T) {
 
 func TestIPv6(t *testing.T) {
 	nft, err := New(&Config{
-		TableFamily:   uint8(types.TableFamilyIPv6),
+		TableFamily:   types.TableFamilyIPv6,
 		TableName:     "test_table_v6",
 		InputChain:    "input",
 		OutputChain:   "output",
