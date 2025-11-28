@@ -8,12 +8,14 @@ nft_setup:
   chain_priority: -300
 input_rules:
   - name: "Rest API SYN"
-    port: 8080
+    #src_addr: "1.2.3.4"
+    dst_port: 8080
     protocol: "tcp"
     flags: ["syn"]
 output_rules:
   - name: "Rest API SYN+ACK"
-    port: 8080
+    #dst_addr: "1.2.3.4"
+    src_port: 8080
     protocol: "tcp"
     flags: ["syn", "ack"]
   

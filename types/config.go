@@ -26,10 +26,12 @@ type Config struct {
 
 type Rule struct {
 	Name     string     `yaml:"name"`
-	Port     uint16     `yaml:"port"`
+	SrcPort  uint16     `yaml:"src_port"`
+	DstPort  uint16     `yaml:"dst_port"`
 	Flags    []TcpFlag  `yaml:"flags"`
 	Protocol Protocol   `yaml:"protocol"`
-	Addr     netip.Addr `yaml:"ip_address"`
+	SrcAddr  netip.Addr `yaml:"src_addr"`
+	DstAddr  netip.Addr `yaml:"dst_addr"`
 	Dir      string     // internal field to denote "input" or "output"
 	Packets  uint64     // internal field to hold counter value
 	Bytes    uint64     // internal field to hold byte count

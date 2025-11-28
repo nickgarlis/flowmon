@@ -141,16 +141,24 @@ func buildAttributes(rule types.Rule) []attribute.KeyValue {
 		attribute.String("direction", rule.Dir),
 	}
 
-	if rule.Addr.IsValid() {
-		attrs = append(attrs, attribute.String("ip_address", rule.Addr.String()))
+	if rule.SrcAddr.IsValid() {
+		attrs = append(attrs, attribute.String("src_addr", rule.SrcAddr.String()))
+	}
+
+	if rule.DstAddr.IsValid() {
+		attrs = append(attrs, attribute.String("dst_addr", rule.DstAddr.String()))
 	}
 
 	if rule.Protocol > 0 {
 		attrs = append(attrs, attribute.String("protocol", rule.Protocol.String()))
 	}
 
-	if rule.Port > 0 && (rule.Protocol == types.ProtocolTCP || rule.Protocol == types.ProtocolUDP) {
-		attrs = append(attrs, attribute.Int("port", int(rule.Port)))
+	if rule.SrcPort > 0 && (rule.Protocol == types.ProtocolTCP || rule.Protocol == types.ProtocolUDP) {
+		attrs = append(attrs, attribute.Int("src_port", int(rule.SrcPort)))
+	}
+
+	if rule.DstPort > 0 && (rule.Protocol == types.ProtocolTCP || rule.Protocol == types.ProtocolUDP) {
+		attrs = append(attrs, attribute.Int("dst_port", int(rule.DstPort)))
 	}
 
 	if len(rule.Flags) > 0 {
@@ -180,7 +188,7 @@ func (f *Flowmon) Shutdown(ctx context.Context) error {
 }
 
 func loadConfig() (*types.Config, error) {
-	configFile := flag.String("config", "/etc/nftables_exporter.yaml", "path to nftables_exporter config file")
+	configFile := flag.String("config", "/etc/flowmon/config.yaml", "path to flowmon config file")
 	flag.Parse()
 
 	yamlFile, err := os.ReadFile(*configFile)

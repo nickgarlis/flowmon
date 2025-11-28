@@ -20,12 +20,11 @@ func TestIPv4(t *testing.T) {
 	}
 
 	inputRules := []types.Rule{
-		{Name: "test_input_rule", Port: 8080, Protocol: types.ProtocolTCP, Flags: []types.TcpFlag{types.TcpFlagSYN}},
-		{Name: "test_input_rule", Port: 8080, Protocol: types.ProtocolTCP, Flags: []types.TcpFlag{types.TcpFlagSYN}},
+		{Name: "test_input_rule", DstPort: 8080, Protocol: types.ProtocolTCP, SrcAddr: netip.MustParseAddr("1.2.3.4"), Flags: []types.TcpFlag{types.TcpFlagSYN}},
 	}
 	outputRules := []types.Rule{
-		{Name: "test_output_rule", Port: 8080, Protocol: types.ProtocolTCP, Flags: []types.TcpFlag{types.TcpFlagSYN, types.TcpFlagACK}, Addr: netip.MustParseAddr("1.2.3.4")},
-		{Name: "test_output_rule", Port: 9090, Protocol: types.ProtocolUDP},
+		{Name: "test_output_rule", SrcPort: 8080, Protocol: types.ProtocolTCP, Flags: []types.TcpFlag{types.TcpFlagSYN, types.TcpFlagACK}, DstAddr: netip.MustParseAddr("1.2.3.4")},
+		{Name: "test_output_rule", DstPort: 9090, Protocol: types.ProtocolUDP, DstAddr: netip.MustParseAddr("2.3.4.5")},
 	}
 
 	if err := nft.Setup(inputRules, outputRules); err != nil {
@@ -71,10 +70,11 @@ func TestIPv6(t *testing.T) {
 	}
 
 	inputRules := []types.Rule{
-		{Name: "test_input_rule_v6", Port: 8080, Protocol: types.ProtocolTCP, Flags: []types.TcpFlag{types.TcpFlagSYN}},
+		{Name: "test_input_rule", DstPort: 8080, Protocol: types.ProtocolTCP, SrcAddr: netip.MustParseAddr("2001:db8::1"), Flags: []types.TcpFlag{types.TcpFlagSYN}},
 	}
 	outputRules := []types.Rule{
-		{Name: "test_output_rule_v6", Port: 8080, Protocol: types.ProtocolTCP, Flags: []types.TcpFlag{types.TcpFlagSYN, types.TcpFlagACK}, Addr: netip.MustParseAddr("2001:db8::1")},
+		{Name: "test_output_rule", SrcPort: 8080, Protocol: types.ProtocolTCP, Flags: []types.TcpFlag{types.TcpFlagSYN, types.TcpFlagACK}, DstAddr: netip.MustParseAddr("2001:db8::1")},
+		{Name: "test_output_rule", DstPort: 9090, Protocol: types.ProtocolUDP, DstAddr: netip.MustParseAddr("2001:db8::2")},
 	}
 
 	if err := nft.Setup(inputRules, outputRules); err != nil {

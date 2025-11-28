@@ -198,9 +198,11 @@ func parseRule(rule *nftables.Rule) *types.Rule {
 	type data string
 	const (
 		dataProtocol data = "protocol"
-		dataPort     data = "port"
+		dataSrcPort  data = "src_port"
+		dataDstPort  data = "dst_port"
 		dataTcpFlag  data = "tcp_flag"
-		dataIP       data = "ip_address"
+		dataSrcAddr  data = "src_addr"
+		dataDstAddr  data = "dst_addr"
 	)
 
 	regs := make(map[uint32]data)
@@ -214,10 +216,14 @@ func parseRule(rule *nftables.Rule) *types.Rule {
 				return nil // We don't use other meta keys.
 			}
 		case *expr.Payload:
-			if e.Len == 2 && (e.Base == expr.PayloadBaseTransportHeader) {
-				regs[e.DestRegister] = dataPort
-			} else if (e.Len == 4 || e.Len == 16) && (e.Base == expr.PayloadBaseNetworkHeader) {
-				regs[e.DestRegister] = dataIP
+			if e.Len == 2 && (e.Base == expr.PayloadBaseTransportHeader && e.Offset == 0) {
+				regs[e.DestRegister] = dataSrcPort
+			} else if e.Len == 2 && (e.Base == expr.PayloadBaseTransportHeader && e.Offset == 2) {
+				regs[e.DestRegister] = dataSrcPort
+			} else if (e.Len == 4 || e.Len == 16) && (e.Base == expr.PayloadBaseNetworkHeader && (e.Offset == 12 || e.Offset == 8)) {
+				regs[e.DestRegister] = dataSrcAddr
+			} else if (e.Len == 4 || e.Len == 16) && (e.Base == expr.PayloadBaseNetworkHeader && (e.Offset == 16 || e.Offset == 24)) {
+				regs[e.DestRegister] = dataDstAddr
 			} else if e.Len == 1 && e.Base == expr.PayloadBaseTransportHeader {
 				regs[e.DestRegister] = dataTcpFlag
 			} else {
@@ -234,13 +240,19 @@ func parseRule(rule *nftables.Rule) *types.Rule {
 						return nil
 					}
 					rulespec.Protocol = types.Protocol(e.Data[0])
-				case dataPort:
+				case dataSrcPort:
 					if len(e.Data) != 2 {
 						return nil
 					}
 					port := binaryutil.BigEndian.Uint16(e.Data)
-					rulespec.Port = port
-				case dataIP:
+					rulespec.SrcPort = port
+				case dataDstPort:
+					if len(e.Data) != 2 {
+						return nil
+					}
+					port := binaryutil.BigEndian.Uint16(e.Data)
+					rulespec.DstPort = port
+				case dataSrcAddr:
 					if len(e.Data) != 4 && len(e.Data) != 16 {
 						return nil
 					}
@@ -248,7 +260,16 @@ func parseRule(rule *nftables.Rule) *types.Rule {
 					if !ok {
 						return nil
 					}
-					rulespec.Addr = addr
+					rulespec.SrcAddr = addr
+				case dataDstAddr:
+					if len(e.Data) != 4 && len(e.Data) != 16 {
+						return nil
+					}
+					addr, ok := netip.AddrFromSlice(e.Data)
+					if !ok {
+						return nil
+					}
+					rulespec.DstAddr = addr
 				case dataTcpFlag:
 					if len(e.Data) != 1 {
 						return nil
@@ -287,18 +308,12 @@ func parseRule(rule *nftables.Rule) *types.Rule {
 func buildRule(table *nftables.Table, chain *nftables.Chain, spec types.Rule) *nftables.Rule {
 	exprs := []expr.Any{}
 
-	if spec.Addr.IsValid() {
+	if spec.SrcAddr.IsValid() {
 		len := uint32(4)
 		offset := uint32(12) // IPv4 source address offset
-		if chain.Hooknum == nftables.ChainHookOutput {
-			offset = 16 // IPv4 destination address offset
-		}
-		if spec.Addr.Is6() {
+		if spec.SrcAddr.Is6() {
 			len = 16
 			offset = 8 // IPv6 source address offset
-			if chain.Hooknum == nftables.ChainHookOutput {
-				offset = 24 // IPv6 destination address offset
-			}
 		}
 		exprs = append(exprs,
 			&expr.Payload{
@@ -310,7 +325,29 @@ func buildRule(table *nftables.Table, chain *nftables.Chain, spec types.Rule) *n
 			&expr.Cmp{
 				Op:       expr.CmpOpEq,
 				Register: 1,
-				Data:     spec.Addr.AsSlice(),
+				Data:     spec.SrcAddr.AsSlice(),
+			},
+		)
+	}
+
+	if spec.DstAddr.IsValid() {
+		len := uint32(4)
+		offset := uint32(16) // IPv4 destination address offset
+		if spec.DstAddr.Is6() {
+			len = 16
+			offset = 24
+		}
+		exprs = append(exprs,
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseNetworkHeader,
+				Offset:       offset,
+				Len:          len,
+			},
+			&expr.Cmp{
+				Op:       expr.CmpOpEq,
+				Register: 1,
+				Data:     spec.DstAddr.AsSlice(),
 			},
 		)
 	}
@@ -322,22 +359,34 @@ func buildRule(table *nftables.Table, chain *nftables.Chain, spec types.Rule) *n
 		)
 	}
 
-	if spec.Port != 0 && (spec.Protocol == unix.IPPROTO_TCP || spec.Protocol == unix.IPPROTO_UDP) {
-		portOffset := uint32(2)
-		if chain.Hooknum == nftables.ChainHookOutput {
-			portOffset = 0
-		}
+	if spec.SrcPort != 0 && (spec.Protocol == unix.IPPROTO_TCP || spec.Protocol == unix.IPPROTO_UDP) {
 		exprs = append(exprs,
 			&expr.Payload{
 				DestRegister: 1,
 				Base:         expr.PayloadBaseTransportHeader,
-				Offset:       portOffset,
+				Offset:       0,
 				Len:          2,
 			},
 			&expr.Cmp{
 				Op:       expr.CmpOpEq,
 				Register: 1,
-				Data:     binaryutil.BigEndian.PutUint16(spec.Port),
+				Data:     binaryutil.BigEndian.PutUint16(spec.SrcPort),
+			},
+		)
+	}
+
+	if spec.DstPort != 0 && (spec.Protocol == unix.IPPROTO_TCP || spec.Protocol == unix.IPPROTO_UDP) {
+		exprs = append(exprs,
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseTransportHeader,
+				Offset:       2,
+				Len:          2,
+			},
+			&expr.Cmp{
+				Op:       expr.CmpOpEq,
+				Register: 1,
+				Data:     binaryutil.BigEndian.PutUint16(spec.DstPort),
 			},
 		)
 	}
