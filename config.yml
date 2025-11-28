@@ -1,0 +1,19 @@
+exporter:
+  collection_interval: "30s"
+  otlp_endpoint: "localhost:4317"
+  debug: true
+nft_setup:
+  protocol_family: "ip"
+  table_name: "flowmon"
+  chain_priority: -300
+input_rules:
+  - name: "Rest API SYN"
+    port: 8080
+    protocol: "tcp"
+    flags: ["syn"]
+output_rules:
+  - name: "Rest API SYN+ACK"
+    port: 8080
+    protocol: "tcp"
+    flags: ["syn", "ack"]
+  
