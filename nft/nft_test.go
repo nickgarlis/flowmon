@@ -2,6 +2,7 @@ package nft
 
 import (
 	"net/netip"
+	"reflect"
 	"testing"
 
 	"github.com/nickgarlis/flowmon/types"
@@ -43,13 +44,24 @@ func TestIPv4(t *testing.T) {
 		t.Errorf("Expected %d output rules, got %d", len(outputRules), len(output))
 	}
 
-	t.Logf("Input Rules:")
-	for _, rule := range input {
-		t.Logf("%+v", rule)
+	for i := range input {
+		input[i].Bytes = 0
+		input[i].Packets = 0
+		input[i].Dir = ""
 	}
-	t.Logf("Output Rules:")
-	for _, rule := range output {
-		t.Logf("%+v", rule)
+
+	if reflect.DeepEqual(inputRules, input) == false {
+		t.Errorf("Input rules do not match expected rules.\nExpected: %+v\nGot: %+v", inputRules, input)
+	}
+
+	for i := range output {
+		output[i].Bytes = 0
+		output[i].Packets = 0
+		output[i].Dir = ""
+	}
+
+	if reflect.DeepEqual(outputRules, output) == false {
+		t.Errorf("Output rules do not match expected rules.\nExpected: %+v\nGot: %+v", outputRules, output)
 	}
 
 	if err := nft.Cleanup(); err != nil {
@@ -93,13 +105,24 @@ func TestIPv6(t *testing.T) {
 		t.Errorf("Expected %d output rules, got %d", len(outputRules), len(output))
 	}
 
-	t.Logf("Input Rules:")
-	for _, rule := range input {
-		t.Logf("%+v", rule)
+	for i := range input {
+		input[i].Bytes = 0
+		input[i].Packets = 0
+		input[i].Dir = ""
 	}
-	t.Logf("Output Rules:")
-	for _, rule := range output {
-		t.Logf("%+v", rule)
+
+	if reflect.DeepEqual(inputRules, input) == false {
+		t.Errorf("Input rules do not match expected rules.\nExpected: %+v\nGot: %+v", inputRules, input)
+	}
+
+	for i := range output {
+		output[i].Bytes = 0
+		output[i].Packets = 0
+		output[i].Dir = ""
+	}
+
+	if reflect.DeepEqual(outputRules, output) == false {
+		t.Errorf("Output rules do not match expected rules.\nExpected: %+v\nGot: %+v", outputRules, output)
 	}
 
 	if err := nft.Cleanup(); err != nil {
