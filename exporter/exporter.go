@@ -28,15 +28,15 @@ type Exporter struct {
 
 func New(cfg *types.Config) (*Exporter, error) {
 	nftClient, err := nft.New(&nft.Config{
-		TableFamily:   cfg.NftSetup.ProtocolFamily,
-		TableName:     cfg.NftSetup.TableName,
-		ChainPriority: cfg.NftSetup.ChainPriority,
+		TableFamily:   cfg.NFTables.Family,
+		TableName:     cfg.NFTables.TableName,
+		ChainPriority: cfg.NFTables.ChainPriority,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("nft.New(): %w", err)
 	}
 
-	if err := nftClient.Setup(cfg.InputRules, cfg.OutputRules); err != nil {
+	if err := nftClient.Setup(&cfg.Counters); err != nil {
 		return nil, fmt.Errorf("nftClient.Setup(): %w", err)
 	}
 
@@ -68,7 +68,7 @@ func (e *Exporter) Start(ctx context.Context) error {
 		sdkmetric.WithResource(res),
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(
 			exporter,
-			sdkmetric.WithInterval(e.cfg.Exporter.CollectionInterval),
+			sdkmetric.WithInterval(e.cfg.Exporter.Interval),
 		)),
 	)
 	otel.SetMeterProvider(e.meterProvider)
@@ -94,7 +94,7 @@ func (e *Exporter) registerMetrics() error {
 
 	bytesGauge, err := e.meter.Int64ObservableGauge(
 		"flow.bytes",
-		metric.WithDescription("Number of bytes processed by NFT rule"),
+		metric.WithDescription("Number of bytes processed by counter"),
 		metric.WithUnit("By"),
 	)
 	if err != nil {
@@ -102,17 +102,17 @@ func (e *Exporter) registerMetrics() error {
 	}
 
 	_, err = e.meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
-		input, output, err := e.nftClient.ListRules()
+		counters, err := e.nftClient.ListCounters()
 		if err != nil {
-			return fmt.Errorf("failed to list rules: %w", err)
+			return fmt.Errorf("failed to list counters: %v", err)
 		}
 
-		rules := append(input, output...)
-		for _, rule := range rules {
-			ruleAttrs := buildAttributes(rule)
+		all := append(counters.Input, counters.Output...)
+		for _, counter := range all {
+			counterAttrs := buildAttributes(counter)
 
-			o.ObserveInt64(packetsGauge, int64(rule.Packets), metric.WithAttributes(ruleAttrs...))
-			o.ObserveInt64(bytesGauge, int64(rule.Bytes), metric.WithAttributes(ruleAttrs...))
+			o.ObserveInt64(packetsGauge, int64(counter.Packets), metric.WithAttributes(counterAttrs...))
+			o.ObserveInt64(bytesGauge, int64(counter.Bytes), metric.WithAttributes(counterAttrs...))
 		}
 
 		return nil
@@ -142,12 +142,12 @@ func (e *Exporter) Shutdown(ctx context.Context) error {
 }
 
 func getExporter(ctx context.Context, cfg *types.Config) (sdkmetric.Exporter, error) {
-	if cfg.Exporter.Debug {
+	if cfg.Exporter.OLTP.Debug {
 		return stdoutmetric.New(stdoutmetric.WithPrettyPrint())
 	}
 
 	conn, err := grpc.NewClient(
-		cfg.Exporter.OTLPEndpoint,
+		cfg.Exporter.OLTP.Endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
@@ -157,34 +157,34 @@ func getExporter(ctx context.Context, cfg *types.Config) (sdkmetric.Exporter, er
 	return otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithGRPCConn(conn))
 }
 
-func buildAttributes(rule types.Rule) []attribute.KeyValue {
+func buildAttributes(counter types.Counter) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
-		attribute.String("direction", rule.Dir),
+		attribute.String("direction", counter.Dir),
 	}
 
-	if rule.SrcAddr.IsValid() {
-		attrs = append(attrs, attribute.String("src_addr", rule.SrcAddr.String()))
+	if counter.SrcAddr.IsValid() {
+		attrs = append(attrs, attribute.String("src_addr", counter.SrcAddr.String()))
 	}
 
-	if rule.DstAddr.IsValid() {
-		attrs = append(attrs, attribute.String("dst_addr", rule.DstAddr.String()))
+	if counter.DstAddr.IsValid() {
+		attrs = append(attrs, attribute.String("dst_addr", counter.DstAddr.String()))
 	}
 
-	if rule.Protocol > 0 {
-		attrs = append(attrs, attribute.String("protocol", rule.Protocol.String()))
+	if counter.Protocol > 0 {
+		attrs = append(attrs, attribute.String("protocol", counter.Protocol.String()))
 	}
 
-	if rule.SrcPort > 0 && (rule.Protocol == types.ProtocolTCP || rule.Protocol == types.ProtocolUDP) {
-		attrs = append(attrs, attribute.Int("src_port", int(rule.SrcPort)))
+	if counter.SrcPort > 0 && (counter.Protocol == types.ProtocolTCP || counter.Protocol == types.ProtocolUDP) {
+		attrs = append(attrs, attribute.Int("src_port", int(counter.SrcPort)))
 	}
 
-	if rule.DstPort > 0 && (rule.Protocol == types.ProtocolTCP || rule.Protocol == types.ProtocolUDP) {
-		attrs = append(attrs, attribute.Int("dst_port", int(rule.DstPort)))
+	if counter.DstPort > 0 && (counter.Protocol == types.ProtocolTCP || counter.Protocol == types.ProtocolUDP) {
+		attrs = append(attrs, attribute.Int("dst_port", int(counter.DstPort)))
 	}
 
-	if len(rule.Flags) > 0 {
-		flags := make([]string, len(rule.Flags))
-		for i, flag := range rule.Flags {
+	if len(counter.TcpFlags) > 0 {
+		flags := make([]string, len(counter.TcpFlags))
+		for i, flag := range counter.TcpFlags {
 			flags[i] = flag.String()
 		}
 		attrs = append(attrs, attribute.StringSlice("flags", flags))

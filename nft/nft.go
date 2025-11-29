@@ -64,7 +64,7 @@ func New(c *Config) (*Conn, error) {
 	}, nil
 }
 
-func (n *Conn) Setup(input, output []types.Rule) error {
+func (n *Conn) Setup(counters *types.Counters) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -73,10 +73,10 @@ func (n *Conn) Setup(input, output []types.Rule) error {
 		return err
 	}
 
-	if err := n.setupChain(n.conn, table, true, input); err != nil {
+	if err := n.setupChain(n.conn, table, true, counters.Input); err != nil {
 		return err
 	}
-	if err := n.setupChain(n.conn, table, false, output); err != nil {
+	if err := n.setupChain(n.conn, table, false, counters.Output); err != nil {
 		return err
 	}
 
@@ -87,29 +87,32 @@ func (n *Conn) Setup(input, output []types.Rule) error {
 	return nil
 }
 
-func (n *Conn) ListRules() ([]types.Rule, []types.Rule, error) {
+func (n *Conn) ListCounters() (*types.Counters, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
 	table, err := n.conn.ListTableOfFamily(n.tableName, n.tableFamily)
 	if err != nil {
-		return nil, nil, fmt.Errorf("get table %s: %v", n.tableName, err)
+		return nil, fmt.Errorf("get table %s: %v", n.tableName, err)
 	}
 
-	inputRules, err := n.listRules(n.conn, table, true)
+	inputRules, err := n.listCounters(n.conn, table, true)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	outputRules, err := n.listRules(n.conn, table, false)
+	outputRules, err := n.listCounters(n.conn, table, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return inputRules, outputRules, nil
+	return &types.Counters{
+		Input:  inputRules,
+		Output: outputRules,
+	}, nil
 }
 
-func (n *Conn) listRules(conn *nftables.Conn, table *nftables.Table, input bool) ([]types.Rule, error) {
+func (n *Conn) listCounters(conn *nftables.Conn, table *nftables.Table, input bool) ([]types.Counter, error) {
 	chainName := n.inputChain
 	if !input {
 		chainName = n.outputChain
@@ -125,17 +128,17 @@ func (n *Conn) listRules(conn *nftables.Conn, table *nftables.Table, input bool)
 		return nil, fmt.Errorf("reset %s rules: %v", chainName, err)
 	}
 
-	var specs []types.Rule
+	var counters []types.Counter
 	for _, rule := range rules {
-		rulespec, err := unmarshalRule(rule)
+		counter, err := unmarshalRule(rule)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshalRule: %v", err)
 		}
-		rulespec.Dir = chainName
-		specs = append(specs, *rulespec)
+		counter.Dir = chainName
+		counters = append(counters, *counter)
 	}
 
-	return specs, nil
+	return counters, nil
 }
 
 func (n *Conn) Cleanup() error {
@@ -161,7 +164,7 @@ func (n *Conn) Cleanup() error {
 	return nil
 }
 
-func (n *Conn) setupChain(conn *nftables.Conn, table *nftables.Table, input bool, rules []types.Rule) error {
+func (n *Conn) setupChain(conn *nftables.Conn, table *nftables.Table, input bool, rules []types.Counter) error {
 	name := n.inputChain
 	hook := nftables.ChainHookInput
 	if !input {

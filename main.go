@@ -27,17 +27,21 @@ func loadConfig(path string) (*types.Config, error) {
 	cfg := &types.Config{
 		Version: version,
 		Exporter: types.Exporter{
-			CollectionInterval: 10,
-			OTLPEndpoint:       "localhost:4317",
-			Debug:              false,
+			Interval: 10,
+			OLTP: types.OLTP{
+				Endpoint: "localhost:4317",
+				Debug:    false,
+			},
 		},
-		NftSetup: types.NftSetup{
-			ProtocolFamily: types.TableFamilyIPv4,
-			TableName:      "flowmon",
-			ChainPriority:  -300,
+		NFTables: types.NFTables{
+			Family:        types.TableFamilyIPv4,
+			TableName:     "flowmon",
+			ChainPriority: -300,
 		},
-		InputRules:  []types.Rule{},
-		OutputRules: []types.Rule{},
+		Counters: types.Counters{
+			Input:  []types.Counter{},
+			Output: []types.Counter{},
+		},
 	}
 
 	if err := yaml.Unmarshal(yamlFile, &cfg); err != nil {

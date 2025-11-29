@@ -1,9 +1,11 @@
 exporter:
-  collection_interval: "30s"
-  otlp_endpoint: "localhost:4317"
-nft_setup:
-  protocol_family: "ip"
+  interval: "30s"
+  otlp:
+    endpoint: "localhost:4317"
+nftables:
+  family: "ip"
   table_name: "flowmon"
   chain_priority: -300
-input_rules: []
-output_rules: []
+counters:
+  input: []
+  output: []

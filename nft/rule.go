@@ -12,13 +12,13 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func marshalRule(table *nftables.Table, chain *nftables.Chain, rule *types.Rule) (*nftables.Rule, error) {
+func marshalRule(table *nftables.Table, chain *nftables.Chain, counter *types.Counter) (*nftables.Rule, error) {
 	exprs := []expr.Any{}
 
-	if rule.SrcAddr.IsValid() {
+	if counter.SrcAddr.IsValid() {
 		len := uint32(4)
 		offset := uint32(12) // IPv4 source address offset
-		if rule.SrcAddr.Is6() {
+		if counter.SrcAddr.Is6() {
 			len = 16
 			offset = 8 // IPv6 source address offset
 		}
@@ -32,15 +32,15 @@ func marshalRule(table *nftables.Table, chain *nftables.Chain, rule *types.Rule)
 			&expr.Cmp{
 				Op:       expr.CmpOpEq,
 				Register: 1,
-				Data:     rule.SrcAddr.AsSlice(),
+				Data:     counter.SrcAddr.AsSlice(),
 			},
 		)
 	}
 
-	if rule.DstAddr.IsValid() {
+	if counter.DstAddr.IsValid() {
 		len := uint32(4)
 		offset := uint32(16) // IPv4 destination address offset
-		if rule.DstAddr.Is6() {
+		if counter.DstAddr.Is6() {
 			len = 16
 			offset = 24
 		}
@@ -54,19 +54,19 @@ func marshalRule(table *nftables.Table, chain *nftables.Chain, rule *types.Rule)
 			&expr.Cmp{
 				Op:       expr.CmpOpEq,
 				Register: 1,
-				Data:     rule.DstAddr.AsSlice(),
+				Data:     counter.DstAddr.AsSlice(),
 			},
 		)
 	}
 
-	if rule.Protocol > 0 {
+	if counter.Protocol > 0 {
 		exprs = append(exprs,
 			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-			&expr.Cmp{Register: 1, Op: expr.CmpOpEq, Data: rule.Protocol.AsSlice()},
+			&expr.Cmp{Register: 1, Op: expr.CmpOpEq, Data: counter.Protocol.AsSlice()},
 		)
 	}
 
-	if rule.SrcPort != 0 && (rule.Protocol == unix.IPPROTO_TCP || rule.Protocol == unix.IPPROTO_UDP) {
+	if counter.SrcPort != 0 && (counter.Protocol == unix.IPPROTO_TCP || counter.Protocol == unix.IPPROTO_UDP) {
 		exprs = append(exprs,
 			&expr.Payload{
 				DestRegister: 1,
@@ -77,12 +77,12 @@ func marshalRule(table *nftables.Table, chain *nftables.Chain, rule *types.Rule)
 			&expr.Cmp{
 				Op:       expr.CmpOpEq,
 				Register: 1,
-				Data:     binaryutil.BigEndian.PutUint16(rule.SrcPort),
+				Data:     binaryutil.BigEndian.PutUint16(counter.SrcPort),
 			},
 		)
 	}
 
-	if rule.DstPort != 0 && (rule.Protocol == unix.IPPROTO_TCP || rule.Protocol == unix.IPPROTO_UDP) {
+	if counter.DstPort != 0 && (counter.Protocol == unix.IPPROTO_TCP || counter.Protocol == unix.IPPROTO_UDP) {
 		exprs = append(exprs,
 			&expr.Payload{
 				DestRegister: 1,
@@ -93,13 +93,13 @@ func marshalRule(table *nftables.Table, chain *nftables.Chain, rule *types.Rule)
 			&expr.Cmp{
 				Op:       expr.CmpOpEq,
 				Register: 1,
-				Data:     binaryutil.BigEndian.PutUint16(rule.DstPort),
+				Data:     binaryutil.BigEndian.PutUint16(counter.DstPort),
 			},
 		)
 	}
 
-	if len(rule.Flags) > 0 && rule.Protocol == types.ProtocolTCP {
-		match := types.TcpFlagsToByte(rule.Flags...)
+	if len(counter.TcpFlags) > 0 && counter.Protocol == types.ProtocolTCP {
+		match := types.TcpFlagsToByte(counter.TcpFlags...)
 		mask := types.TcpFlagsToByte(types.TcpFlagFIN, types.TcpFlagSYN, types.TcpFlagRST, types.TcpFlagACK)
 		exprs = append(exprs,
 			&expr.Payload{
@@ -127,7 +127,7 @@ func marshalRule(table *nftables.Table, chain *nftables.Chain, rule *types.Rule)
 		&expr.Counter{},
 	)
 
-	userData := userdata.AppendString([]byte{}, userdata.TypeComment, rule.Name)
+	userData := userdata.AppendString([]byte{}, userdata.TypeComment, counter.Label)
 
 	return &nftables.Rule{
 		Table:    table,
@@ -137,11 +137,11 @@ func marshalRule(table *nftables.Table, chain *nftables.Chain, rule *types.Rule)
 	}, nil
 }
 
-func unmarshalRule(rule *nftables.Rule) (*types.Rule, error) {
-	rulespec := &types.Rule{}
+func unmarshalRule(rule *nftables.Rule) (*types.Counter, error) {
+	rulespec := &types.Counter{}
 	parser := &ruleUnmarshaler{
-		rule: rulespec,
-		regs: make(map[uint32]registerType),
+		counter: rulespec,
+		regs:    make(map[uint32]registerType),
 	}
 
 	for _, e := range rule.Exprs {
@@ -150,16 +150,15 @@ func unmarshalRule(rule *nftables.Rule) (*types.Rule, error) {
 		}
 	}
 
-	// Only return rules that have a counter and a name
-	if !parser.hasCounter {
+	if !parser.hasCounterExpr {
 		return nil, fmt.Errorf("rule has no counter")
 	}
 
 	name, ok := userdata.GetString(rule.UserData, userdata.TypeComment)
 	if !ok {
-		return nil, fmt.Errorf("rule has no name")
+		return nil, fmt.Errorf("rule has no comment")
 	}
-	rulespec.Name = name
+	rulespec.Label = name
 
 	return rulespec, nil
 }
@@ -176,9 +175,9 @@ const (
 )
 
 type ruleUnmarshaler struct {
-	rule       *types.Rule
-	regs       map[uint32]registerType
-	hasCounter bool
+	counter        *types.Counter
+	regs           map[uint32]registerType
+	hasCounterExpr bool
 }
 
 func (r *ruleUnmarshaler) unmarshalExpr(e expr.Any) error {
@@ -247,19 +246,19 @@ func (r *ruleUnmarshaler) unmarshalCmp(e *expr.Cmp) error {
 		if len(e.Data) != 1 {
 			return fmt.Errorf("invalid protocol length")
 		}
-		r.rule.Protocol = types.Protocol(e.Data[0])
+		r.counter.Protocol = types.Protocol(e.Data[0])
 
 	case regSrcPort:
 		if len(e.Data) != 2 {
 			return fmt.Errorf("invalid port length")
 		}
-		r.rule.SrcPort = binaryutil.BigEndian.Uint16(e.Data)
+		r.counter.SrcPort = binaryutil.BigEndian.Uint16(e.Data)
 
 	case regDstPort:
 		if len(e.Data) != 2 {
 			return fmt.Errorf("invalid port length")
 		}
-		r.rule.DstPort = binaryutil.BigEndian.Uint16(e.Data)
+		r.counter.DstPort = binaryutil.BigEndian.Uint16(e.Data)
 
 	case regSrcAddr, regDstAddr:
 		if len(e.Data) != 4 && len(e.Data) != 16 {
@@ -270,16 +269,16 @@ func (r *ruleUnmarshaler) unmarshalCmp(e *expr.Cmp) error {
 			return fmt.Errorf("invalid address")
 		}
 		if regType == regSrcAddr {
-			r.rule.SrcAddr = addr
+			r.counter.SrcAddr = addr
 		} else {
-			r.rule.DstAddr = addr
+			r.counter.DstAddr = addr
 		}
 
 	case regTcpFlag:
 		if len(e.Data) != 1 {
 			return fmt.Errorf("invalid flag length")
 		}
-		r.rule.Flags = types.TcpFlagsFromByte(e.Data[0])
+		r.counter.TcpFlags = types.TcpFlagsFromByte(e.Data[0])
 
 	default:
 		return fmt.Errorf("unknown register type")
@@ -289,8 +288,8 @@ func (r *ruleUnmarshaler) unmarshalCmp(e *expr.Cmp) error {
 }
 
 func (r *ruleUnmarshaler) unmarshalCounter(e *expr.Counter) error {
-	r.hasCounter = true
-	r.rule.Packets = e.Packets
-	r.rule.Bytes = e.Bytes
+	r.hasCounterExpr = true
+	r.counter.Packets = e.Packets
+	r.counter.Bytes = e.Bytes
 	return nil
 }
