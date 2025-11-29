@@ -51,17 +51,7 @@ func TestIPv4(t *testing.T) {
 		t.Errorf("Expected %d output counters, got %d", len(wantCounters.Output), len(gotCounters.Output))
 	}
 
-	for i := range wantCounters.Input {
-		wantCounters.Input[i].Bytes = 0
-		wantCounters.Input[i].Packets = 0
-		wantCounters.Input[i].Dir = ""
-	}
-
-	for i := range wantCounters.Output {
-		wantCounters.Output[i].Bytes = 0
-		wantCounters.Output[i].Packets = 0
-		wantCounters.Output[i].Dir = ""
-	}
+	clearFields(gotCounters)
 
 	if reflect.DeepEqual(wantCounters, gotCounters) == false {
 		t.Errorf("Counters do not match expected counters.\nExpected: %+v\nGot: %+v", wantCounters, gotCounters)
@@ -114,17 +104,7 @@ func TestIPv6(t *testing.T) {
 		t.Errorf("Expected %d output counters, got %d", len(wantCounters.Output), len(gotCounters.Output))
 	}
 
-	for i := range wantCounters.Input {
-		wantCounters.Input[i].Bytes = 0
-		wantCounters.Input[i].Packets = 0
-		wantCounters.Input[i].Dir = ""
-	}
-
-	for i := range wantCounters.Output {
-		wantCounters.Output[i].Bytes = 0
-		wantCounters.Output[i].Packets = 0
-		wantCounters.Output[i].Dir = ""
-	}
+	clearFields(gotCounters)
 
 	if reflect.DeepEqual(wantCounters, gotCounters) == false {
 		t.Errorf("Counters do not match expected counters.\nExpected: %+v\nGot: %+v", wantCounters, gotCounters)
@@ -132,5 +112,18 @@ func TestIPv6(t *testing.T) {
 
 	if err := nft.Cleanup(); err != nil {
 		t.Fatalf("Cleanup failed: %v", err)
+	}
+}
+
+func clearFields(counters *types.Counters) {
+	for i := range counters.Input {
+		counters.Input[i].Bytes = 0
+		counters.Input[i].Packets = 0
+		counters.Input[i].Dir = ""
+	}
+	for i := range counters.Output {
+		counters.Output[i].Bytes = 0
+		counters.Output[i].Packets = 0
+		counters.Output[i].Dir = ""
 	}
 }
