@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/nickgarlis/flowmon/compare/v0.0.1...v1.0.0) (2025-11-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* use attribute name `tcp_flags` for consistency
+
+### Bug Fixes
+
+* use attribute name `tcp_flags` for consistency ([b0a19f9](https://github.com/nickgarlis/flowmon/commit/b0a19f90c3e6bd7d81f8dd453c4e168c9a1a7fd3))
+
 ## 0.0.1 (2025-11-29)
 
 
