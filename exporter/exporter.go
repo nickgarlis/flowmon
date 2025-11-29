@@ -262,7 +262,7 @@ func buildAttributes(counter types.Counter) []attribute.KeyValue {
 		for i, flag := range counter.TcpFlags {
 			flags[i] = flag.String()
 		}
-		attrs = append(attrs, attribute.StringSlice("flags", flags))
+		attrs = append(attrs, attribute.StringSlice("tcp_flags", flags))
 	}
 
 	return attrs
