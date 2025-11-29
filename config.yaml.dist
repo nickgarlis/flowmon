@@ -2,6 +2,7 @@ exporter:
   interval: "30s"
   otlp:
     endpoint: "localhost:4317"
+    protocol: "grpc"
 nftables:
   family: "ip"
   table_name: "flowmon"

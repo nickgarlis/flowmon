@@ -187,3 +187,29 @@ func (f TableFamily) String() string {
 		return "unknown"
 	}
 }
+
+type OTLPProtocol string
+
+const (
+	OTLPProtocolGRPC   OTLPProtocol = "grpc"
+	OTLPProtocolHTTP   OTLPProtocol = "http"
+	OTLPProtocolStdout OTLPProtocol = "stdout"
+)
+
+func (p *OTLPProtocol) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	switch strings.ToLower(s) {
+	case "grpc":
+		*p = OTLPProtocolGRPC
+	case "http":
+		*p = OTLPProtocolHTTP
+	case "stdout":
+		*p = OTLPProtocolStdout
+	default:
+		*p = OTLPProtocolGRPC
+	}
+	return nil
+}

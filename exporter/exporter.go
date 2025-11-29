@@ -2,7 +2,11 @@ package exporter
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"net/http"
+	"os"
 	"time"
 
 	"github.com/nickgarlis/flowmon/nft"
@@ -10,13 +14,13 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 )
 
 type Exporter struct {
@@ -142,19 +146,86 @@ func (e *Exporter) Shutdown(ctx context.Context) error {
 }
 
 func getExporter(ctx context.Context, cfg *types.Config) (sdkmetric.Exporter, error) {
-	if cfg.Exporter.OLTP.Debug {
+	otlpCfg := cfg.Exporter.OTLP
+	protocol := otlpCfg.Protocol
+
+	switch otlpCfg.Protocol {
+	case types.OTLPProtocolStdout:
 		return stdoutmetric.New(stdoutmetric.WithPrettyPrint())
+	case types.OTLPProtocolHTTP:
+		return newHTTPExporter(ctx, otlpCfg)
+	case types.OTLPProtocolGRPC:
+		return newGRPCExporter(ctx, otlpCfg)
+	default:
+		return nil, fmt.Errorf("unknown protocol %q, expected 'grpc' or 'http'", protocol)
+	}
+}
+
+func newHTTPExporter(ctx context.Context, cfg types.OTLP) (sdkmetric.Exporter, error) {
+	opts := []otlpmetrichttp.Option{
+		otlpmetrichttp.WithEndpoint(cfg.Endpoint),
 	}
 
-	conn, err := grpc.NewClient(
-		cfg.Exporter.OLTP.Endpoint,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create gRPC connection: %w", err)
+	if cfg.TLS == nil {
+		opts = append(opts, otlpmetrichttp.WithInsecure())
+	} else {
+		tlsConfig, err := buildTLSConfig(cfg.TLS)
+		if err != nil {
+			return nil, err
+		}
+		transport := &http.Transport{TLSClientConfig: tlsConfig}
+		client := &http.Client{Transport: transport, Timeout: 30 * time.Second}
+		opts = append(opts, otlpmetrichttp.WithHTTPClient(client))
 	}
 
-	return otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithGRPCConn(conn))
+	return otlpmetrichttp.New(ctx, opts...)
+}
+
+func newGRPCExporter(ctx context.Context, cfg types.OTLP) (sdkmetric.Exporter, error) {
+	opts := []otlpmetricgrpc.Option{
+		otlpmetricgrpc.WithEndpoint(cfg.Endpoint),
+	}
+
+	if cfg.TLS == nil {
+		opts = append(opts, otlpmetricgrpc.WithInsecure())
+	} else {
+		tlsConfig, err := buildTLSConfig(cfg.TLS)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, otlpmetricgrpc.WithTLSCredentials(credentials.NewTLS(tlsConfig)))
+	}
+
+	return otlpmetricgrpc.New(ctx, opts...)
+}
+
+func buildTLSConfig(cfg *types.TLSConfig) (*tls.Config, error) {
+	if cfg == nil {
+		return &tls.Config{MinVersion: tls.VersionTLS12}, nil
+	}
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+
+	if cfg.CAFile != "" {
+		caCert, err := os.ReadFile(cfg.CAFile)
+		if err != nil {
+			return nil, err
+		}
+		caPool := x509.NewCertPool()
+		if !caPool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to parse CA cert")
+		}
+		tlsConfig.RootCAs = caPool
+	}
+
+	if cfg.CertFile != "" && cfg.KeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	return tlsConfig, nil
 }
 
 func buildAttributes(counter types.Counter) []attribute.KeyValue {

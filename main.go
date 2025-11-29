@@ -28,9 +28,9 @@ func loadConfig(path string) (*types.Config, error) {
 		Version: version,
 		Exporter: types.Exporter{
 			Interval: 10,
-			OLTP: types.OLTP{
+			OTLP: types.OTLP{
 				Endpoint: "localhost:4317",
-				Debug:    false,
+				Protocol: types.OTLPProtocolGRPC,
 			},
 		},
 		NFTables: types.NFTables{

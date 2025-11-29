@@ -13,12 +13,13 @@ type NFTables struct {
 
 type Exporter struct {
 	Interval time.Duration `yaml:"interval"`
-	OLTP     OLTP          `yaml:"otlp"`
+	OTLP     OTLP          `yaml:"otlp"`
 }
 
-type OLTP struct {
-	Endpoint string `yaml:"endpoint"`
-	Debug    bool   `yaml:"debug"`
+type OTLP struct {
+	Endpoint string       `yaml:"endpoint"`
+	Protocol OTLPProtocol `yaml:"protocol"`
+	TLS      *TLSConfig   `yaml:"tls_config,omitempty"`
 }
 
 type Config struct {
@@ -44,4 +45,10 @@ type Counter struct {
 	Dir      string     // internal field to denote "input" or "output"
 	Packets  uint64     // internal field to hold counter value
 	Bytes    uint64     // internal field to hold byte count
+}
+
+type TLSConfig struct {
+	CertFile string `yaml:"cert_file,omitempty"`
+	KeyFile  string `yaml:"key_file,omitempty"`
+	CAFile   string `yaml:"ca_file,omitempty"`
 }
