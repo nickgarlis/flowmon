@@ -25,6 +25,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+var (
+	version = "dev"
+)
+
 type Flowmon struct {
 	nftClient     *nft.Conn
 	meter         metric.Meter
@@ -49,7 +53,7 @@ func getExporter(ctx context.Context, cfg *types.Config) (sdkmetric.Exporter, er
 
 func NewFlowmon(ctx context.Context, cfg *types.Config) (*Flowmon, error) {
 	nftClient, err := nft.New(&nft.Config{
-		TableFamily:   uint8(cfg.NftSetup.ProtocolFamily),
+		TableFamily:   cfg.NftSetup.ProtocolFamily,
 		TableName:     cfg.NftSetup.TableName,
 		ChainPriority: cfg.NftSetup.ChainPriority,
 	})
@@ -187,13 +191,10 @@ func (f *Flowmon) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func loadConfig() (*types.Config, error) {
-	configFile := flag.String("config", "/etc/flowmon/config.yaml", "path to flowmon config file")
-	flag.Parse()
-
-	yamlFile, err := os.ReadFile(*configFile)
+func loadConfig(path string) (*types.Config, error) {
+	yamlFile, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %v", err)
+		return nil, err
 	}
 
 	cfg := &types.Config{
@@ -212,17 +213,18 @@ func loadConfig() (*types.Config, error) {
 	}
 
 	if err := yaml.Unmarshal(yamlFile, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %v", err)
+		return nil, err
 	}
 
 	return cfg, nil
 }
 
-func main() {
+func start(configPath string) {
+
 	ctx, cancel := signal.NotifyContext(context.Background(), unix.SIGINT, unix.SIGTERM)
 	defer cancel()
 
-	cfg, err := loadConfig()
+	cfg, err := loadConfig(configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
@@ -238,5 +240,29 @@ func main() {
 	log.Println("Flowmon stopping...")
 	if err := exporter.Shutdown(context.Background()); err != nil {
 		log.Fatalf("Failed to shutdown flowmon: %v", err)
+	}
+
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <command> [options]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nCommands:\n")
+		fmt.Fprintf(os.Stderr, "  start    Start the flowmon daemon\n")
+		fmt.Fprintf(os.Stderr, "  version  Show version information\n")
+		os.Exit(1)
+	}
+
+	switch os.Args[1] {
+	case "start":
+		startCmd := flag.NewFlagSet("start", flag.ExitOnError)
+		configPath := startCmd.String("config", "/etc/flowmon/config.yaml", "path to config file")
+		startCmd.Parse(os.Args[2:])
+		start(*configPath)
+	case "version":
+		fmt.Printf("flowmon version %s\n", version)
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
+		os.Exit(1)
 	}
 }

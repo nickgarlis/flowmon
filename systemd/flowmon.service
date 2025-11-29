@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=/etc/default/flowmon
-ExecStart=/usr/bin/flowmon $ARGS
+ExecStart=/usr/bin/flowmon start $ARGS
 ReadOnlyPaths=/etc/flowmon/config.yaml
 DynamicUser=true
 AmbientCapabilities=CAP_NET_ADMIN
