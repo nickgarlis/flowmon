@@ -18,6 +18,7 @@ type Exporter struct {
 }
 
 type Config struct {
+	Version     string   // internal field to build version
 	Exporter    Exporter `yaml:"exporter"`
 	NftSetup    NftSetup `yaml:"nft_setup"`
 	InputRules  []Rule   `yaml:"input_rules"`
