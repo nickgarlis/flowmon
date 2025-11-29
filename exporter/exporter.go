@@ -162,6 +162,10 @@ func buildAttributes(counter types.Counter) []attribute.KeyValue {
 		attribute.String("direction", counter.Dir),
 	}
 
+	if counter.Label != "" {
+		attrs = append(attrs, attribute.String("label", counter.Label))
+	}
+
 	if counter.SrcAddr.IsValid() {
 		attrs = append(attrs, attribute.String("src_addr", counter.SrcAddr.String()))
 	}
