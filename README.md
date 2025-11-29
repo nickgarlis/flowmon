@@ -27,12 +27,12 @@ counters:
     - label: "rest_syn_requests"
       protocol: "tcp"
       dst_port: 8080
-      flags: [sync]
+      tcp_flags: [sync]
   output:
     - label: "rest_syn_ack_responses"
       protocol: "tcp"
       src_port: 8080
-      flags: [syn, ack]
+      tcp_flags: [syn, ack]
 ```
 This example monitors TCP SYN requests to port 8080 and TCP SYN-ACK responses
 from port 8080, exporting metrics every 30 seconds to an OpenTelemetry endpoint
